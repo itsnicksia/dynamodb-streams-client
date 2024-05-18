@@ -1,11 +1,29 @@
-package io.fasterthoughts
-
 import aws.sdk.kotlin.services.dynamodb.DynamoDbClient
+import aws.sdk.kotlin.services.dynamodb.model.DescribeTableRequest
+import aws.sdk.kotlin.services.dynamodbstreams.DynamoDbStreamsClient
 import aws.smithy.kotlin.runtime.net.url.Url
+import io.fasterthoughts.setupTestData
 
-fun main() {
-  val client = DynamoDbClient {
-    endpointUrl = Url.parse("www.dynamodb.com")
+const val dataTable = "data"
+
+suspend fun main() {
+
+  val dynamoDbClient = DynamoDbClient {
+    region = "local"
+    endpointUrl = Url.parse("http://localhost:8000")
   }
-  println("Hello World!")
+
+  val dynamoDbStreamsClient = DynamoDbStreamsClient {
+    region = "local"
+    endpointUrl = Url.parse("http://localhost:8000")
+  }
+
+  setupTestData(dynamoDbClient);
+
+  val tableData = dynamoDbClient.describeTable(DescribeTableRequest {
+    tableName = dataTable;
+  })
+
+  val streamsClient = StreamsClient(dynamoDbClient, dynamoDbStreamsClient, tableData.table!!.latestStreamArn!!)
+  streamsClient.start()
 }
