@@ -1,31 +1,52 @@
-const val MAX_ALLOWED_DEPTH = 100
-
 class DirectedForest<Id, Value> {
   private val nodeMap = mutableMapOf<Id, Node>()
+  private val parentMemo = mutableMapOf<Id, Id>()
 
-  fun addNodes(bareNodes: Iterable<BareNode>) {
-    //bareNodes.forEach { flattenTowardsRoot(it, MAX_ALLOWED_DEPTH) }
-    //nodeMap +=
+  fun addNodes(rawNodes: Iterable<RawNode>) {
+    val parentIdMap = rawNodes.associateBy { it.id }
+
+    rawNodes
+      .forEach { node ->
+        run {
+          check(!nodeMap.containsKey(node.id)) { "Node with id=${node.id} already exists in nodeMap." }
+          val rootNode = Node(findRootNodeId(node.id))
+          nodeMap[node.id] = Node(node.id, rootNode)
+        }
+      }
   }
 
-  private tailrec fun flattenTowardsRoot(
-    node: Node,
-    remainingDepth: Int,
-    seenNodes: MutableMap<Id, Node> = mutableMapOf()
-  ) {
-    val childId = node.child.id
-    val parent = node.parent
+  /**
+   * TODO: Actually, yeah return the root node.
+   */
+  private fun findRootNodeId(
+    nodeId: Id,
+  ): Id {
+    val seenIds: MutableSet<Id> = mutableSetOf()
 
-    if (parent == null) {
-      return
+    tailrec fun findRootNodeIdRecursive(nodeId: Id): Id {
+      check(!seenIds.contains(nodeId)) { "Cyclic dependency detected. TODO: Show cycle" }
+      seenIds.add(nodeId)
+
+      val parentId = parentMemo[nodeId]
+
+      return if (parentId == null) {
+        nodeId
+      } else {
+        findRootNodeIdRecursive(parentId);
+      }
     }
 
-    check (!seenNodes.containsKey(parent.id)) { "Cyclic dependency detected. TODO: Show cycle" }
+    val rootNodeId = findRootNodeIdRecursive(nodeId)
 
-    return flattenTowardsRoot(Pair(parent.id, parent.getParent()), remainingDepth - 1, seenNodes.add(node.));
+    /**
+     * Update memoization
+     */
+    seenIds.forEach { id -> parentMemo[id] = rootNodeId }
+
+    return rootNodeId
   }
 
-  inner class BareNode (val id: Id, val parentId: Id?, val value: Value)
-  inner class Node (val id: Id, val value: Value, val parent: Node?)
+  inner class RawNode (val id: Id, val parentId: Id?)
+  inner class Node (val id: Id, val parent: Node? = null)
 }
 
