@@ -2,6 +2,7 @@ import aws.sdk.kotlin.services.dynamodb.DynamoDbClient
 import aws.sdk.kotlin.services.dynamodb.model.DescribeTableRequest
 import aws.sdk.kotlin.services.dynamodbstreams.DynamoDbStreamsClient
 import aws.smithy.kotlin.runtime.net.url.Url
+import client.StreamsClient
 import io.fasterthoughts.setupTestData
 
 const val dataTable = "data"

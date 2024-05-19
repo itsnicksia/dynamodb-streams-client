@@ -1,4 +1,4 @@
-package io.fasterthoughts
+package client
 
 import aws.sdk.kotlin.services.dynamodbstreams.model.Shard
 

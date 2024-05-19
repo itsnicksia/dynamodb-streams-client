@@ -1,4 +1,9 @@
-class DirectedForest<Id, Value> {
+package client
+
+/**
+ * A two-level directed forest.
+ */
+class DirectedForest<Id> {
   private val nodeMap = mutableMapOf<Id, Node>()
   private val parentMemo = mutableMapOf<Id, Id>()
 
@@ -9,18 +14,15 @@ class DirectedForest<Id, Value> {
       .forEach { node ->
         run {
           check(!nodeMap.containsKey(node.id)) { "Node with id=${node.id} already exists in nodeMap." }
-          val rootNode = Node(findRootNodeId(node.id))
+          val rootNode = findRootNode(node.id)
           nodeMap[node.id] = Node(node.id, rootNode)
         }
       }
   }
 
-  /**
-   * TODO: Actually, yeah return the root node.
-   */
-  private fun findRootNodeId(
+  private fun findRootNode(
     nodeId: Id,
-  ): Id {
+  ): Node {
     val seenIds: MutableSet<Id> = mutableSetOf()
 
     tailrec fun findRootNodeIdRecursive(nodeId: Id): Id {
@@ -43,7 +45,15 @@ class DirectedForest<Id, Value> {
      */
     seenIds.forEach { id -> parentMemo[id] = rootNodeId }
 
-    return rootNodeId
+    return Node(rootNodeId)
+  }
+
+  fun getRootId(id: Id): Id? {
+    val node = nodeMap[id]
+
+    requireNotNull(node) { "Unable to find node with id=$id" }
+
+    return node.parent?.id
   }
 
   inner class RawNode (val id: Id, val parentId: Id?)
