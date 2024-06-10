@@ -3,12 +3,11 @@ import aws.sdk.kotlin.services.dynamodb.model.DescribeTableRequest
 import aws.sdk.kotlin.services.dynamodbstreams.DynamoDbStreamsClient
 import aws.smithy.kotlin.runtime.net.url.Url
 import client.StreamsClient
-import io.fasterthoughts.setupTestData
+import io.fasterthoughts.ensureTestData
 
 const val dataTable = "data"
 
 suspend fun main() {
-
   val dynamoDbClient = DynamoDbClient {
     region = "local"
     endpointUrl = Url.parse("http://localhost:8000")
@@ -19,7 +18,7 @@ suspend fun main() {
     endpointUrl = Url.parse("http://localhost:8000")
   }
 
-  setupTestData(dynamoDbClient);
+  //ensureTestData(dynamoDbClient);
 
   val tableData = dynamoDbClient.describeTable(DescribeTableRequest {
     tableName = dataTable;

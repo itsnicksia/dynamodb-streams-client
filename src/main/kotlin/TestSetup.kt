@@ -6,15 +6,7 @@ import dataTable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
-suspend fun setupTestData(client: DynamoDbClient) {
-//  try {
-//    client.deleteTable(DeleteTableRequest {
-//      tableName = dataTable
-//    })
-//  } catch (e: ResourceNotFoundException) {
-//    println("[${dataTable}] table does not exist.")
-//  }
-
+suspend fun ensureTestData(client: DynamoDbClient) {
   println("Creating table [${dataTable}]")
 
   client.createTable(CreateTableRequest {
@@ -50,9 +42,7 @@ suspend fun setupTestData(client: DynamoDbClient) {
   })
 
   println("Adding test data to table [${dataTable}]")
-  coroutineScope {
-  for (playerId in 0 until 10_000) {
-      launch {
+  for (playerId in 0 until 1_000) {
         for (batch in 0 until 100) {
           client.batchWriteItem(BatchWriteItemRequest {
             requestItems = mapOf(
@@ -69,7 +59,6 @@ suspend fun setupTestData(client: DynamoDbClient) {
             )
           })
         }
-      }
+    println("Finished adding test data for playerId=$playerId")
     }
-  }
 }
