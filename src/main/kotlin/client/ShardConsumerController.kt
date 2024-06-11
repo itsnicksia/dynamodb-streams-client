@@ -1,18 +1,23 @@
 package client
 
+import aws.sdk.kotlin.services.dynamodb.DynamoDbClient
 import aws.sdk.kotlin.services.dynamodbstreams.DynamoDbStreamsClient
 import aws.sdk.kotlin.services.dynamodbstreams.model.DescribeStreamRequest
+import aws.sdk.kotlin.services.dynamodbstreams.model.Record
 import aws.sdk.kotlin.services.dynamodbstreams.model.Shard
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.consumeEach
 
-class ShardConsumerController(private val streamsClient: DynamoDbStreamsClient) {
-    private val shardConsumers = mutableMapOf<String, ShardConsumer>()
+const val GET_RECORDS_BATCH_SIZE = 1000
 
-    suspend fun consumeStream(streamArn: String, recordProcessor: RecordProcessor) {
+class ShardConsumerController(private val streamsClient: DynamoDbStreamsClient, private val client: DynamoDbClient) {
+    private val shardConsumers = mutableMapOf<String, ShardReader>()
+
+    suspend fun consumeStream(streamArn: String, onConsumeRecord: (Record) -> Unit) {
         // TODO: Spin until lease acquired!
         // TODO: Map to local Shard type here!
-        val consumers = getShards(streamArn).map { ShardConsumer(streamArn, it.shardId!!, streamsClient) }
+        val consumers = getShards(streamArn).map { ShardReader(streamArn, it.shardId!!, streamsClient, client) }
         val consumersByShardId = consumers.associateBy { it.shardId }.toMap()
         shardConsumers.putAll(consumersByShardId);
 
@@ -20,12 +25,27 @@ class ShardConsumerController(private val streamsClient: DynamoDbStreamsClient) 
 
         /**
          * Start a coroutine scope for each consumer.
+         *
+         * One consumer per shard.
+         *
          * TODO: Respawn dead consumers.
+         * TODO: Tune configuration - is default dispatcher appropriate?
+         * TODO: When finished, destroy channel.
          */
         consumers.forEach {
-            coroutineScope {
+            val supervisorScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            supervisorScope {
+                val channel: Channel<Record> = Channel(GET_RECORDS_BATCH_SIZE)
                 launch {
-                    it.startProcessing(recordProcessor)
+                    it.streamRecordsToChannel(channel)
+                }
+
+                launch {
+                    channel.consumeEach {
+                        onConsumeRecord(it)
+                        //println("DUMMY: Would have saved $lastSequenceNumberProcessed")
+                    }
+                    println("exit?")
                 }
             }
         }
