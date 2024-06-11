@@ -18,8 +18,6 @@ suspend fun main() {
     endpointUrl = Url.parse("http://localhost:8000")
   }
 
-  //ensureTestData(dynamoDbClient);
-
   val tableData = dynamoDbClient.describeTable(DescribeTableRequest {
     tableName = dataTable;
   })

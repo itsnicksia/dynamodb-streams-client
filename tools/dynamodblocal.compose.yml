@@ -1,8 +1,12 @@
-version: '3.8'
 services:
   dynamodb-local:
-    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory ./data"
+    command: "-jar DynamoDBLocal.jar -sharedDb /tmp/data"
     image: "amazon/dynamodb-local:latest"
     container_name: dynamodb-local
+    volumes:
+      - data:/tmp/data
     ports:
       - "8000:8000"
+volumes:
+  data:
+    driver: local

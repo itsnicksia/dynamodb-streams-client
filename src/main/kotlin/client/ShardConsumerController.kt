@@ -9,16 +9,23 @@ import kotlinx.coroutines.launch
 class ShardConsumerController(private val streamsClient: DynamoDbStreamsClient) {
     private val shardConsumers = mutableMapOf<String, ShardConsumer>()
 
-    suspend fun processStreamArn(streamArn: String, recordProcessor: RecordProcessor) {
+    suspend fun consumeStream(streamArn: String, recordProcessor: RecordProcessor) {
         // TODO: Spin until lease acquired!
         // TODO: Map to local Shard type here!
-        val consumers = getShards(streamArn).map { ShardConsumer(it, streamsClient, recordProcessor) }
-        val consumersByShardId = consumers.associateBy { it.shard.shardId!! }.toMap()
+        val consumers = getShards(streamArn).map { ShardConsumer(streamArn, it.shardId!!, streamsClient) }
+        val consumersByShardId = consumers.associateBy { it.shardId }.toMap()
         shardConsumers.putAll(consumersByShardId);
-        consumers.forEach { _ ->
+
+        // TODO: You can only start consuming if you have no parent or the parent is finished processing!
+
+        /**
+         * Start a coroutine scope for each consumer.
+         * TODO: Respawn dead consumers.
+         */
+        consumers.forEach {
             coroutineScope {
                 launch {
-                    ShardConsumer::startProcessing()
+                    it.startProcessing(recordProcessor)
                 }
             }
         }
