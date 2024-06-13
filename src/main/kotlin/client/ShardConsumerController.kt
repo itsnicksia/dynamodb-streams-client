@@ -10,16 +10,16 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 
 const val GET_RECORDS_BATCH_SIZE = 1000
+const val MAX_CONSUMER_RETRIES = 5
+const val MAX_PRODUCER_RETRIES = 5
 
 class ShardConsumerController(private val streamsClient: DynamoDbStreamsClient, private val client: DynamoDbClient) {
     private val shardConsumers = mutableMapOf<String, ShardReader>()
 
-    suspend fun consumeStream(streamArn: String, onConsumeRecord: (Record) -> Unit) {
-        // TODO: Spin until lease acquired!
-        // TODO: Map to local Shard type here!
-        val consumers = getShards(streamArn).map { ShardReader(streamArn, it.shardId!!, streamsClient, client) }
-        val consumersByShardId = consumers.associateBy { it.shardId }.toMap()
-        shardConsumers.putAll(consumersByShardId);
+    suspend fun processStream(streamArn: String, consumerFunction: (Record) -> Unit) {
+        val shardReaders = getShards(streamArn).map { ShardReader(streamArn, it.shardId!!, streamsClient, client) }
+        val shardReaderMap = shardReaders.associateBy { it.shardId }.toMap()
+        shardConsumers.putAll(shardReaderMap);
 
         // TODO: You can only start consuming if you have no parent or the parent is finished processing!
 
@@ -28,34 +28,48 @@ class ShardConsumerController(private val streamsClient: DynamoDbStreamsClient, 
          *
          * One consumer per shard.
          *
-         * TODO: Respawn dead consumers.
-         * TODO: Tune configuration - is default dispatcher appropriate?
          * TODO: When finished, destroy channel.
          */
-        consumers.forEach {
-            val supervisorScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-            supervisorScope {
-                val channel: Channel<Record> = Channel(GET_RECORDS_BATCH_SIZE)
-                launch {
-                    it.streamRecordsToChannel(channel)
-                }
+        shardReaders.forEach { startProcessing(it, consumerFunction) }
+    }
 
-                launch {
-                    channel.consumeEach {
-                        onConsumeRecord(it)
-                        //println("DUMMY: Would have saved $lastSequenceNumberProcessed")
-                    }
-                    println("exit?")
-                }
+    private fun startProcessing(shardReader: ShardReader, consumeFunction: (Record) -> Unit) {
+        val consumerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        consumerScope.apply {
+            val channel: Channel<Record> = Channel(GET_RECORDS_BATCH_SIZE)
+            
+            launch { produceRecords(shardReader, channel) }
+            launch { consumeRecords(channel, consumeFunction) }
+        }
+    }
+
+    private suspend fun produceRecords(shardReader: ShardReader, channel: Channel<Record>) {
+        var remainingProducerRetries = MAX_PRODUCER_RETRIES
+        while (remainingProducerRetries > 0) {
+            try {
+                shardReader.readRecordsTo(channel)
+            } catch (e: Exception) {
+                remainingProducerRetries--
             }
         }
     }
 
-    /**
-     * Create a map of ancestor shards to queues containing descendant shards ordered by sequence number.
-     *
-     * This allows consumers to quickly grab the next shard to process while maintaining partition order.
-     */
+    private suspend fun consumeRecords(channel: Channel<Record>, consumerFunction: (Record) -> Unit) {
+        var remainingConsumerRetries = MAX_CONSUMER_RETRIES
+        while (remainingConsumerRetries > 0) {
+            try {
+                channel.consumeEach {
+                    consumerFunction(it)
+                    //println("DUMMY: Would have saved $lastSequenceNumberProcessed")
+                }
+            } catch (e: Exception) {
+                remainingConsumerRetries--
+            }
+
+            println("exit?")
+        }
+    }
+
     private suspend fun getShards(streamArn: String): List<Shard> {
         val shards = mutableListOf<Shard>()
 

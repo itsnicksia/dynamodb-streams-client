@@ -9,7 +9,7 @@ class StreamsClient(
   private val streamArn: String) {
   suspend fun start() {
     ShardConsumerController(dynamoDbStreamsClient, dynamoDbClient)
-      .consumeStream(streamArn) {
+      .processStream(streamArn) {
         println("[consumer] ${it.dynamodb?.sequenceNumber}=${it.dynamodb?.keys}")
       }
   }

@@ -7,8 +7,6 @@ import aws.sdk.kotlin.services.dynamodbstreams.model.GetShardIteratorRequest
 import aws.sdk.kotlin.services.dynamodbstreams.model.Record
 import aws.sdk.kotlin.services.dynamodbstreams.model.ShardIteratorType
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 val BACKOFF_DELAY = 5.seconds
@@ -22,7 +20,7 @@ val BACKOFF_DELAY = 5.seconds
    - https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_streams_GetRecords.html
  */
 class ShardReader(private val streamArn: String, val shardId: String, private val streamsClient: DynamoDbStreamsClient, private val client: DynamoDbClient) {
-  suspend fun streamRecordsToChannel(channel: Channel<Record>) {
+  suspend fun readRecordsTo(channel: Channel<Record>) {
     /**
      * GetShardIterator
      * https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_streams_GetShardIterator.html
